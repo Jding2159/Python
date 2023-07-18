@@ -1,6 +1,7 @@
 import paramiko
 import datetime
 import os
+import csv
 
 def get_ssh_connection(hostname, username, private_key_path):
     """Establishes an SSH connection"""
@@ -36,6 +37,13 @@ def compare_files(source_files, destination_files):
 
     return missing_files_source, missing_files_destination
 
+def export_file_list_to_csv(file_list, csv_filename):
+    """Exports the file list to a CSV file"""
+    with open(csv_filename, 'w', newline='') as csv_file:
+        writer = csv.writer(csv_file)
+        writer.writerow(['File Name'])
+        writer.writerows([[file] for file in file_list])
+
 def main():
     # Source and destination directory paths
     source_directory = '/path/to/source_directory'
@@ -62,6 +70,10 @@ def main():
 
         # Filter files for yesterday and today
         destination_files = [file for file in destination_files if file.startswith(yesterday) or file.startswith(today)]
+
+        # Export file lists to CSV
+        export_file_list_to_csv(source_files, 'source_files.csv')
+        export_file_list_to_csv(destination_files, 'destination_files.csv')
 
         # Compare files
         missing_files_source, missing_files_destination = compare_files(source_files, destination_files)
