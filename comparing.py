@@ -1,18 +1,21 @@
-import pysftp
+import paramiko
 import datetime
 
-def get_sftp_connection(hostname, username, private_key_path):
-    """Establishes an SFTP connection"""
-    cnopts = pysftp.CnOpts()
-    cnopts.hostkeys.load('/etc/ssh/ssh_known_hosts')
-    private_key = private_key_path
+def get_ssh_connection(hostname, username, private_key_path):
+    """Establishes an SSH connection"""
+    private_key = paramiko.RSAKey.from_private_key_file(private_key_path)
+    client = paramiko.SSHClient()
+    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    client.connect(hostname=hostname, username=username, pkey=private_key)
+    return client
 
-    return pysftp.Connection(host=hostname, username=username, private_key=private_key, cnopts=cnopts)
+def get_sftp_connection(ssh_client):
+    """Establishes an SFTP connection using an existing SSH connection"""
+    return ssh_client.open_sftp()
 
 def get_files_in_directory(sftp, directory):
     """Returns a list of filenames in the specified directory"""
-    sftp.cwd(directory)
-    return sftp.listdir()
+    return sftp.listdir(directory)
 
 def get_yesterday_and_today_filenames():
     """Returns the filenames for yesterday and today in the format 'yyyymmdd'"""
@@ -32,19 +35,29 @@ def main():
     source_directory = '/path/to/source_directory'
     destination_directory = '/path/to/destination_directory'
 
-    # SFTP credentials
-    hostname = 'sftp_hostname'
-    username = 'sftp_username'
-    private_key_path = '/path/to/private_key'
+    # Source SSH credentials
+    source_hostname = 'source_ssh_hostname'
+    source_username = 'source_ssh_username'
+    source_private_key_path = '/path/to/source_private_key'
 
-    # Get SFTP connections
-    with get_sftp_connection(hostname, username, private_key_path) as sftp:
+    # Destination SSH credentials
+    destination_hostname = 'destination_ssh_hostname'
+    destination_username = 'destination_ssh_username'
+    destination_private_key_path = '/path/to/destination_private_key'
+
+    # Get SSH connections for source and destination
+    with get_ssh_connection(source_hostname, source_username, source_private_key_path) as source_ssh, \
+            get_ssh_connection(destination_hostname, destination_username, destination_private_key_path) as destination_ssh:
+        # Get SFTP connections for source and destination
+        source_sftp = get_sftp_connection(source_ssh)
+        destination_sftp = get_sftp_connection(destination_ssh)
+
         # Get filenames for yesterday and today
         yesterday, today = get_yesterday_and_today_filenames()
 
         # Get files in source and destination directories
-        source_files = get_files_in_directory(sftp, source_directory)
-        destination_files = get_files_in_directory(sftp, destination_directory)
+        source_files = get_files_in_directory(source_sftp, source_directory)
+        destination_files = get_files_in_directory(destination_sftp, destination_directory)
 
         # Filter files for yesterday and today
         source_files = [file for file in source_files if file.startswith((yesterday, today))]
