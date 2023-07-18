@@ -8,12 +8,12 @@ def get_sftp_client(hostname, username, private_key_path):
     private_key = paramiko.RSAKey.from_private_key_file(private_key_path)
     transport = paramiko.Transport(hostname)
     transport.connect(username=username, pkey=private_key)
-    return transport.open_sftp()
+    return paramiko.SFTPClient.from_transport(transport)
 
 def get_files_in_directory(sftp_client, directory):
     """Returns a list of filenames in the specified directory"""
     files = sftp_client.listdir(directory)
-    return [file.filename for file in files if file.filename]
+    return [file for file in files if file]
 
 def get_yesterday_and_today_filenames():
     """Returns the filenames for yesterday and today in the format 'yyyymmdd'"""
