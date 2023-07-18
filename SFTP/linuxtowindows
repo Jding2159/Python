@@ -1,20 +1,19 @@
-import paramiko
+import pysftp
 import datetime
 import os
-import csv
 
-def get_ssh_connection(hostname, username, private_key_path):
-    """Establishes an SSH connection"""
-    private_key = paramiko.RSAKey.from_private_key_file(private_key_path)
-    client = paramiko.SSHClient()
-    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    client.connect(hostname=hostname, username=username, pkey=private_key)
-    return client
+def get_sftp_connection(hostname, username, private_key_path):
+    """Establishes an SFTP connection"""
+    cnopts = pysftp.CnOpts()
+    cnopts.hostkeys.load('/etc/ssh/ssh_known_hosts')
+    private_key = private_key_path
 
-def get_files_in_directory(ssh_client, directory):
-    """Returns a list of filenames in the specified directory on the Linux host"""
-    stdin, stdout, stderr = ssh_client.exec_command(f"ls {directory}")
-    return stdout.read().decode().splitlines()
+    return pysftp.Connection(host=hostname, username=username, private_key=private_key, cnopts=cnopts)
+
+def get_files_in_directory(sftp, directory):
+    """Returns a list of filenames in the specified directory"""
+    sftp.cwd(directory)
+    return sftp.listdir()
 
 def get_yesterday_and_today_filenames():
     """Returns the filenames for yesterday and today in the format 'yyyymmdd'"""
@@ -37,43 +36,42 @@ def compare_files(source_files, destination_files):
 
     return missing_files_source, missing_files_destination
 
-def export_file_list_to_csv(file_list, csv_filename):
-    """Exports the file list to a CSV file"""
-    with open(csv_filename, 'w', newline='') as csv_file:
-        writer = csv.writer(csv_file)
-        writer.writerow(['File Name'])
-        writer.writerows([[file] for file in file_list])
-
 def main():
     # Source and destination directory paths
     source_directory = '/path/to/source_directory'
     destination_directory = '\\\\windows_file_server\\path\\to\\destination_directory'
 
-    # Source SSH credentials
-    source_hostname = 'source_ssh_hostname'
-    source_username = 'source_ssh_username'
+    # Source SFTP credentials
+    source_hostname = 'source_sftp_hostname'
+    source_username = 'source_sftp_username'
     source_private_key_path = '/path/to/source_private_key'
 
-    # Get SSH connection for source Linux host
-    with get_ssh_connection(source_hostname, source_username, source_private_key_path) as source_ssh:
+    # Get SFTP connection for source server
+    with get_sftp_connection(source_hostname, source_username, source_private_key_path) as source_sftp:
         # Get filenames for yesterday and today
         yesterday, today = get_yesterday_and_today_filenames()
 
-        # Get files in source directory on Linux host
-        source_files = get_files_in_directory(source_ssh, source_directory)
+        # Get files in source directory
+        source_files = get_files_in_directory(source_sftp, source_directory)
 
         # Filter files for yesterday and today
         source_files = [file for file in source_files if file.startswith(yesterday) or file.startswith(today)]
 
-        # Get files in destination directory on Windows file server
+        # Print source file list
+        print("Source Files:")
+        for file in source_files:
+            print(file)
+
+        # Get files in destination directory
         destination_files = os.listdir(destination_directory)
 
         # Filter files for yesterday and today
         destination_files = [file for file in destination_files if file.startswith(yesterday) or file.startswith(today)]
 
-        # Export file lists to CSV
-        export_file_list_to_csv(source_files, 'source_files.csv')
-        export_file_list_to_csv(destination_files, 'destination_files.csv')
+        # Print destination file list
+        print("Destination Files:")
+        for file in destination_files:
+            print(file)
 
         # Compare files
         missing_files_source, missing_files_destination = compare_files(source_files, destination_files)
